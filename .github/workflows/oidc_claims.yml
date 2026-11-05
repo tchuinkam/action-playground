@@ -1,0 +1,49 @@
+# REPO:  actions-playground
+# RUN:   Actions tab > "See the OIDC claims" > Run workflow
+# SHOWS: the identity details GitHub would give to a cloud provider (for example AWS).
+#        No AWS account is needed: we only LOOK at the claims, we do not send them anywhere.
+name: See the OIDC claims
+
+on: workflow_dispatch
+
+permissions:
+  id-token: write              # NEW: allow the job to ask GitHub for an identity token (the "OIDC" token)
+  contents: read               # the normal read-only access to the repository (Day 1)
+
+jobs:
+  from-a-branch:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Show the claims a cloud provider would receive
+        run: |
+          # The runner provides two variables (ACTIONS_ID_TOKEN_REQUEST_URL and _TOKEN) because of
+          # "id-token: write" above. We use them to ask GitHub for a token whose audience is AWS.
+          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | python3 -c "import sys, json; print(json.load(sys.stdin)['value'])")
+          export TOKEN
+          python3 - <<'PY'
+          import base64, json, os
+          # The token has three parts separated by dots. The middle part holds the claims, as JSON.
+          payload = os.environ["TOKEN"].split(".")[1]
+          payload += "=" * (-len(payload) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(payload))
+          # Print only the claims we care about. NEVER print the token itself.
+          for key in ("iss", "aud", "sub", "repository", "ref", "environment"):
+              print(f"{key:<12} {claims.get(key)}")
+          PY
+
+  from-an-environment:
+    runs-on: ubuntu-24.04
+    environment: staging       # this job uses an environment: watch how the "sub" claim changes
+    steps:
+      - name: Show the claims again, now from a job that uses an environment
+        run: |
+          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | python3 -c "import sys, json; print(json.load(sys.stdin)['value'])")
+          export TOKEN
+          python3 - <<'PY'
+          import base64, json, os
+          payload = os.environ["TOKEN"].split(".")[1]
+          payload += "=" * (-len(payload) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(payload))
+          for key in ("iss", "aud", "sub", "repository", "ref", "environment"):
+              print(f"{key:<12} {claims.get(key)}")
+          PY
