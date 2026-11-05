@@ -22,7 +22,7 @@ jobs:
 
   test:
     runs-on: ubuntu-24.04
-    needs: build
+    # needs: build
     steps:
       - run: echo "Testing (a real test job would check out the code and run pytest)"
 
