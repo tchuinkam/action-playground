@@ -1,0 +1,47 @@
+name: Build, Test, Deploy (demo)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Create a demo package
+        run: |
+          mkdir -p package
+          echo "demo package, built by run ${{ github.run_number }}" > package/version.txt
+      - name: Keep the package for later jobs
+        uses: actions/upload-artifact@v7
+        with:
+          name: demo-package
+          path: package/
+
+  test:
+    runs-on: ubuntu-24.04
+    needs: build
+    steps:
+      - run: echo "Testing (a real test job would check out the code and run pytest)"
+
+  deploy:
+    runs-on: ubuntu-24.04
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+    env:
+      APP_ENV: production
+    steps:
+      - name: Fetch the package built earlier
+        uses: actions/download-artifact@v8
+        with:
+          name: demo-package
+          path: dist
+      - name: Look at what we are about to ship
+        run: |
+          ls -l dist
+          cat dist/version.txt
+      - name: Deploy (placeholder)
+        run: echo "A real deployment would go here. Pretending to deploy dist/ to $APP_ENV"
